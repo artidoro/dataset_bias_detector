@@ -6,6 +6,7 @@ import multiprocessing
 import math
 import tqdm
 import collections
+import itertools
 
 def load_sentences(args):
     """
@@ -36,6 +37,7 @@ def preprocess_sentences(sentence_list):
         1. lowercases
         2. tokenizes
         3. removes stop words
+        4. remove punctuation
     """
     # TODO: with open(args['identity_labels_path']) as identity_labels_file:
     with open('identity_labels.txt') as identity_labels_file:
@@ -46,7 +48,7 @@ def preprocess_sentences(sentence_list):
 
     def preprocess_sentence(sentence):
         tokenized_sentence = nlp(sentence.lower(), disable=['parser', 'tagger', 'ner'])
-        return [token.text for token in tokenized_sentence if not token.is_stop]
+        return [token.text for token in tokenized_sentence if not (token.is_stop or token.is_punct)]
 
     preprocessed_sentence_list = [preprocess_sentence(sentence) for sentence in tqdm.tqdm(sentence_list)]
     return preprocessed_sentence_list
@@ -57,6 +59,17 @@ def sentence_counter(sentence, low_frequency):
     `sentence` should be a list of words.
     """
     return collections.Counter([word for word in sentence if word not in low_frequency])
+
+def build_joint_counters(sentence_counters):
+    """
+    Builds counter of joint occurrences. The key of the counter is a frozenset of two words
+    so that occurrence order does not matter.
+    """
+    joint_counter = collections.Counter()
+    for counter in tqdm.tqdm(sentence_counters):
+        for w1, w2 in itertools.combinations(counter.keys(), 2):
+            joint_counter[frozenset({w1, w2})] += min(counter[w1], counter[w2])
+    return joint_counter
 
 def chunks(l, n):
     """

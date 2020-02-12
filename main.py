@@ -62,8 +62,16 @@ if __name__ == '__main__':
             chunksize=math.ceil(len(sentence_list)/args['num_processes'])))
         logger.info('Finished building sentence level counters')
 
+        # Get joint counts.
+        logger.info('Starting to build joint occurrence counts using {} processes.'.format(args['num_processes']))
+        joint_counters = p.map(utils.build_joint_counters,
+            utils.chunks(word_sentence_counters, math.ceil(len(word_sentence_counters)/args['num_processes'])),
+            chunksize=1)
+        joint_unigram_counter = sum(joint_counters, collections.Counter())
+        logger.info('Finished building joint counts. Joint unigram counter has {} unique pairs'.format(len(joint_unigram_counter)))
+
         # Save the dataset.
-        dataset = dataset.Dataset(args, unigram_counter, word_sentence_counters)
+        dataset = dataset.Dataset(args, unigram_counter, joint_unigram_counter)
         dt_string = datetime.datetime.now().strftime("%d-%m-%Y_%H:%M:%S")
         dataset_path = os.path.join(args['save_path'], dt_string + '.dt')
         logger.info('Saving dataset: {}'.format(dataset_path))
@@ -71,11 +79,8 @@ if __name__ == '__main__':
     else:
         logger.info('Loading dataset from checkpoint from {}'.format(args['load_path']))
         dataset = dataset.load_dataset(args['load_path'])
-        with open('identity_labels.txt') as identity_labels_file:
-            identity_list = list(map(lambda x: x.strip(), identity_labels_file.readlines()))
-        # print(set(dataset.unigram_counter.keys()).intersection(set(identity_list)))
 
     if args['unigram'] is not None:
         logger.info('Calculating PMI for word {}.'.format(args['unigram']))
         pmi_dict = dataset.PMI_all_words(args['unigram'])
-        logger.info('The top 5 words in terms of PMI of unigram frequency are:\n{}'.format(list(pmi_dict.items())[:5]))
+        logger.info('The top 5 words in terms of PMI of unigram frequency are:\n{}'.format(list(pmi_dict.items())[:20]))

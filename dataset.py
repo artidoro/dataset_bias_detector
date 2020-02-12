@@ -10,10 +10,10 @@ class Dataset:
     """
     Class holding info about the dataset that is needed to calculate PMI.
     """
-    def __init__(self, args, unigram_counter, word_sentence_counters):
+    def __init__(self, args, unigram_counter, joint_unigram_counter):
         self.args = args
         self.unigram_counter = unigram_counter
-        self.word_sentence_counters = word_sentence_counters
+        self.joint_unigram_counter = joint_unigram_counter
         self.number_tokens = len(unigram_counter)
 
     def PMI_all_words(self, word):
@@ -26,17 +26,13 @@ class Dataset:
             logger.error('Word {} is not present in dataset or is stop word or rare word.')
             exit()
         else:
-            p = multiprocessing.Pool(self.args['num_processes'])
-            dataset_words = self.unigram_counter.keys()
-            pmi_list =  list(p.starmap(self.PMI, [(word, dataset_word) for dataset_word in dataset_words],
-                chunksize=math.ceil(len(dataset_words)/self.args['num_processes'])))
-            pmi_dict = {word:pmi for word,pmi in zip(dataset_words, pmi_list)}
+            pmi_dict = {w2:self.PMI(word, w2) for w2 in self.unigram_counter.keys()}
             pmi_dict_sorted = {word:pmi for word,pmi in sorted(pmi_dict.items(), key=lambda item: item[1], reverse=True)}
             return pmi_dict_sorted
 
     def PMI(self, w1, w2):
-        joint_count = sum([min(sentence_counter[w1], sentence_counter[w2]) for sentence_counter in self.word_sentence_counters])
-        return utils.pmi_from_counts(self.unigram_counter[w1], self.unigram_counter[w2], joint_count, self.number_tokens)
+        return utils.pmi_from_counts(self.unigram_counter[w1], self.unigram_counter[w2],
+            self.joint_unigram_counter[frozenset({w1, w2})], self.number_tokens)
 
     def save(self, path):
         with open(path, 'wb') as save_file:
@@ -51,4 +47,4 @@ def load_dataset(path):
         load_attributes = pickle.load(load_file)
     return Dataset(load_attributes['args'],
         load_attributes['unigram_counter'],
-        load_attributes['word_sentence_counters'])
+        load_attributes['joint_unigram_counter'])
